@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareConnect - Patient Management System</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+        .tab-active {
+            border-bottom-color: #059669; /* emerald-600 */
+            color: #059669;
+            font-weight: 600;
+        }
+        .tab-inactive {
+            border-bottom-color: transparent;
+            color: #6b7280; /* gray-500 */
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .calendar-day:hover {
+            background-color: #f3f4f6;
+        }
+        .appointment-dot {
+            height: 6px;
+            width: 6px;
+            background-color: #10b981; /* emerald-500 */
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .toast {
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Global Toast Notification -->
+    <div id="toast-notification" class="toast fixed top-5 right-5 bg-emerald-500 text-white px-6 py-3 rounded-lg shadow-lg translate-x-[120%] opacity-0">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- Telemedicine Modal -->
+    <div id="telemedicine-modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 opacity-0 pointer-events-none">
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full m-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">Telemedicine Session</h2>
+                <button id="close-telemedicine-modal" class="text-gray-500 hover:text-gray-800">
+                    <i data-lucide="x" class="h-6 w-6"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-gray-800 rounded-lg p-2">
+                    <div class="bg-black aspect-video rounded flex items-center justify-center text-white">Patient Video Feed (Placeholder)</div>
+                    <p class="text-white text-sm mt-2 text-center">Patient: <span id="telemedicine-patient-name"></span></p>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-2">
+                     <div class="bg-black aspect-video rounded flex items-center justify-center text-white">Doctor Video Feed (Placeholder)</div>
+                     <p class="text-white text-sm mt-2 text-center">Dr. Evelyn Reed</p>
+                </div>
+            </div>
+             <div class="mt-4 flex justify-center space-x-4">
+                <button class="bg-gray-200 p-3 rounded-full text-gray-700 hover:bg-gray-300"><i data-lucide="mic-off"></i></button>
+                <button class="bg-gray-200 p-3 rounded-full text-gray-700 hover:bg-gray-300"><i data-lucide="video-off"></i></button>
+                <button id="end-call-btn" class="bg-red-600 p-3 rounded-full text-white hover:bg-red-700"><i data-lucide="phone-off"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white/80 backdrop-blur-sm shadow-sm sticky top-0 z-40">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-emerald-600 p-2 rounded-lg">
+                            <i data-lucide="heart-pulse" class="text-white"></i>
+                        </div>
+                        <h1 class="text-2xl font-bold text-gray-900">CareConnect</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                         <div class="flex items-center text-sm text-gray-500">
+                            <i data-lucide="user-circle" class="mr-2 h-5 w-5"></i>
+                            <span>Dr. Evelyn Reed</span>
+                        </div>
+                        <button class="text-gray-500 hover:text-gray-700">
+                            <i data-lucide="bell"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Tabs -->
+            <div class="border-b border-gray-200 mb-8">
+                <nav id="tabs" class="-mb-px flex space-x-8 overflow-x-auto" aria-label="Tabs">
+                    <!-- Tabs will be injected here -->
+                </nav>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="tab-content">
+                <!-- Content will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- MOCK DATA & STATE ---
+            let state = {
+                activeTab: 'dashboard',
+                patients: [
+                    { id: 1, name: 'John Doe', dob: '1985-05-20', phone: '555-0101', email: 'john.doe@email.com', emergencyContact: 'Jane Doe (555-0102)', allergies: 'Peanuts', conditions: 'Hypertension', medications: 'Lisinopril 10mg' },
+                    { id: 2, name: 'Jane Smith', dob: '1992-11-15', phone: '555-0103', email: 'jane.smith@email.com', emergencyContact: 'John Smith (555-0104)', allergies: 'None', conditions: 'Asthma', medications: 'Albuterol Inhaler' },
+                    { id: 3, name: 'Robert Johnson', dob: '1978-02-10', phone: '555-0105', email: 'robert.j@email.com', emergencyContact: 'Susan Johnson (555-0106)', allergies: 'Penicillin', conditions: 'Type 2 Diabetes', medications: 'Metformin 500mg' },
+                ],
+                appointments: [
+                    { id: 1, patientId: 1, patientName: 'John Doe', date: '2025-07-28', time: '10:00', type: 'Annual Check-up', status: 'Confirmed' },
+                    { id: 2, patientId: 2, patientName: 'Jane Smith', date: '2025-07-28', time: '11:30', type: 'Follow-up', status: 'Confirmed' },
+                    { id: 3, patientId: 3, patientName: 'Robert Johnson', date: '2025-07-29', time: '14:00', type: 'Consultation', status: 'Confirmed' },
+                    { id: 4, patientId: 1, patientName: 'John Doe', date: '2025-07-29', time: '09:00', type: 'Telemedicine', status: 'Confirmed' },
+                ],
+                ehr: {
+                    1: [{ date: '2024-07-20', note: 'Routine check-up. BP slightly elevated. Advised diet and exercise.' }],
+                    2: [{ date: '2024-06-15', note: 'Asthma symptoms reviewed. Prescription refilled.' }],
+                    3: [{ date: '2024-07-01', note: 'Blood sugar levels checked. Discussed medication adherence.' }],
+                },
+                prescriptions: [
+                    { id: 1, patientId: 1, patientName: 'John Doe', medication: 'Lisinopril', dosage: '10mg', frequency: 'Once daily', issueDate: '2024-07-20', status: 'Active' },
+                    { id: 2, patientId: 3, patientName: 'Robert Johnson', medication: 'Metformin', dosage: '500mg', frequency: 'Twice daily', issueDate: '2024-07-01', status: 'Active' },
+                ],
+                selectedPatientId: null,
+            };
+
+            // --- TABS & ROUTING ---
+            const tabs = [
+                { id: 'dashboard', name: 'Dashboard', icon: 'layout-dashboard' },
+                { id: 'appointments', name: 'Appointments', icon: 'calendar-days' },
+                { id: 'ehr', name: 'Patient Records (EHR)', icon: 'folder-heart' },
+                { id: 'prescriptions', name: 'Prescriptions', icon: 'pilcrow' },
+                { id: 'telemedicine', name: 'Telemedicine', icon: 'video' },
+                { id: 'security', name: 'Security & Compliance', icon: 'shield-check' },
+            ];
+
+            const renderTabs = () => {
+                const tabsContainer = document.getElementById('tabs');
+                tabsContainer.innerHTML = tabs.map(tab => `
+                    <a href="#" data-tab="${tab.id}" class="tab-item ${state.activeTab === tab.id ? 'tab-active' : 'tab-inactive'} flex items-center px-1 py-4 border-b-2 text-sm font-medium whitespace-nowrap">
+                        <i data-lucide="${tab.icon}" class="mr-2 h-5 w-5"></i>
+                        ${tab.name}
+                    </a>
+                `).join('');
+                lucide.createIcons();
+            };
+
+            const renderContent = () => {
+                const contentContainer = document.getElementById('tab-content');
+                let content = '';
+                switch (state.activeTab) {
+                    case 'dashboard': content = renderDashboard(); break;
+                    case 'appointments': content = renderAppointments(); break;
+                    case 'ehr': content = renderEHR(); break;
+                    case 'prescriptions': content = renderPrescriptions(); break;
+                    case 'telemedicine': content = renderTelemedicine(); break;
+                    case 'security': content = renderSecurity(); break;
+                }
+                contentContainer.innerHTML = `<div class="animate-fade-in">${content}</div>`;
+                lucide.createIcons();
+                addEventListeners();
+            };
+
+            // --- RENDER FUNCTIONS ---
+            const renderDashboard = () => {
+                const today = new Date('2025-07-28').toISOString().split('T')[0];
+                const upcomingAppointments = state.appointments.filter(a => a.date >= today).length;
+                return `
+                    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                        <div class="bg-white p-6 rounded-2xl shadow-md flex items-center space-x-4">
+                            <div class="bg-blue-100 p-3 rounded-full"><i data-lucide="calendar" class="text-blue-600"></i></div>
+                            <div><p class="text-sm text-gray-500">Upcoming Appointments</p><p class="text-2xl font-bold">${upcomingAppointments}</p></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-md flex items-center space-x-4">
+                            <div class="bg-green-100 p-3 rounded-full"><i data-lucide="users" class="text-green-600"></i></div>
+                            <div><p class="text-sm text-gray-500">Total Patients</p><p class="text-2xl font-bold">${state.patients.length}</p></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-md flex items-center space-x-4">
+                             <div class="bg-yellow-100 p-3 rounded-full"><i data-lucide="message-square" class="text-yellow-600"></i></div>
+                            <div><p class="text-sm text-gray-500">Unread Messages</p><p class="text-2xl font-bold">3</p></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-md flex items-center space-x-4">
+                            <div class="bg-red-100 p-3 rounded-full"><i data-lucide="file-warning" class="text-red-600"></i></div>
+                            <div><p class="text-sm text-gray-500">Pending Lab Results</p><p class="text-2xl font-bold">2</p></div>
+                        </div>
+                    </div>
+                    <div class="mt-8 bg-white p-6 rounded-2xl shadow-md">
+                        <h3 class="text-lg font-semibold mb-4">Quick Actions</h3>
+                        <div class="flex flex-wrap gap-4">
+                            <button data-tab-target="appointments" class="quick-action-btn flex-1 bg-emerald-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-emerald-700 transition min-w-[200px]">Schedule Appointment</button>
+                            <button data-tab-target="ehr" class="quick-action-btn flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-blue-700 transition min-w-[200px]">Find Patient Record</button>
+                            <button data-tab-target="prescriptions" class="quick-action-btn flex-1 bg-indigo-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition min-w-[200px]">New Prescription</button>
+                            <button data-tab-target="telemedicine" class="quick-action-btn flex-1 bg-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-purple-700 transition min-w-[200px]">Start Telemedicine Call</button>
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderAppointments = () => {
+                const today = new Date('2025-07-28');
+                const calendarDays = Array.from({length: 7}, (_, i) => {
+                    const day = new Date(today);
+                    day.setDate(today.getDate() + i);
+                    const appointmentsOnDay = state.appointments.filter(a => a.date === day.toISOString().split('T')[0]);
+                    return `
+                        <div class="calendar-day border rounded-lg p-2 text-center cursor-pointer">
+                            <p class="text-sm">${day.toLocaleDateString('en-US', { weekday: 'short' })}</p>
+                            <p class="font-bold text-lg">${day.getDate()}</p>
+                            <div class="flex justify-center mt-1 space-x-1">${appointmentsOnDay.map(() => `<span class="appointment-dot"></span>`).join('')}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                const appointmentsHTML = state.appointments.sort((a,b) => new Date(a.date) - new Date(b.date)).map(apt => `
+                    <tr class="border-b">
+                        <td class="py-3 px-4">${apt.patientName}</td>
+                        <td class="py-3 px-4">${apt.date} at ${apt.time}</td>
+                        <td class="py-3 px-4"><span class="px-2 py-1 text-xs font-medium rounded-full ${apt.type === 'Telemedicine' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">${apt.type}</span></td>
+                        <td class="py-3 px-4 text-green-600 font-semibold">${apt.status}</td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2">
+                            <h3 class="text-xl font-semibold mb-4">Weekly Schedule</h3>
+                            <div class="grid grid-cols-7 gap-2 bg-white p-4 rounded-2xl shadow-md">
+                                ${calendarDays}
+                            </div>
+                            <div class="bg-white p-6 rounded-2xl shadow-md mt-8">
+                                <h3 class="text-xl font-semibold mb-4">All Upcoming Appointments</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm text-left">
+                                        <thead class="bg-gray-50"><tr><th class="py-2 px-4">Patient</th><th class="py-2 px-4">Date & Time</th><th class="py-2 px-4">Type</th><th class="py-2 px-4">Status</th></tr></thead>
+                                        <tbody>${appointmentsHTML}</tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-md">
+                            <h3 class="text-xl font-semibold mb-4">New Appointment</h3>
+                            <form id="appointment-form" class="space-y-4">
+                                <select name="patientId" class="w-full p-2 border rounded-md" required>
+                                    <option value="">Select Patient</option>
+                                    ${state.patients.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                                </select>
+                                <input type="date" name="date" class="w-full p-2 border rounded-md" required>
+                                <input type="time" name="time" class="w-full p-2 border rounded-md" required>
+                                <select name="type" class="w-full p-2 border rounded-md" required>
+                                    <option>Annual Check-up</option><option>Consultation</option><option>Follow-up</option><option>Telemedicine</option>
+                                </select>
+                                <button type="submit" class="w-full bg-emerald-600 text-white py-2 rounded-md font-semibold hover:bg-emerald-700">Schedule</button>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            };
+            
+            const renderEHR = (searchTerm = '') => {
+                const filteredPatients = state.patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                const patientListHTML = filteredPatients.map(p => `
+                    <li data-patient-id="${p.id}" class="patient-list-item cursor-pointer p-3 rounded-md ${state.selectedPatientId === p.id ? 'bg-emerald-100' : 'hover:bg-gray-100'}">
+                        <p class="font-semibold">${p.name}</p>
+                        <p class="text-xs text-gray-500">DOB: ${p.dob}</p>
+                    </li>
+                `).join('');
+
+                const selectedPatient = state.patients.find(p => p.id === state.selectedPatientId);
+                const patientDetailHTML = selectedPatient ? `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-2xl font-bold">${selectedPatient.name}</h3>
+                            <p class="text-sm text-gray-500">DOB: ${selectedPatient.dob} | Phone: ${selectedPatient.phone}</p>
+                        </div>
+                    </div>
+                    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                        <div class="bg-gray-50 p-4 rounded-lg"><strong>Allergies:</strong> ${selectedPatient.allergies}</div>
+                        <div class="bg-gray-50 p-4 rounded-lg"><strong>Active Conditions:</strong> ${selectedPatient.conditions}</div>
+                        <div class="bg-gray-50 p-4 rounded-lg col-span-2"><strong>Current Medications:</strong> ${selectedPatient.medications}</div>
+                    </div>
+                    <div class="mt-6">
+                        <h4 class="text-lg font-semibold mb-2">Encounter History</h4>
+                        <div class="space-y-4 max-h-40 overflow-y-auto pr-2">
+                            ${(state.ehr[selectedPatient.id] || []).map(note => `
+                                <div class="bg-gray-50 p-3 rounded-lg"><p class="font-semibold text-xs">${note.date}</p><p>${note.note}</p></div>
+                            `).join('') || '<p class="text-xs text-gray-400">No encounter notes found.</p>'}
+                        </div>
+                         <div class="mt-4">
+                            <textarea id="new-ehr-note" class="w-full p-2 border rounded-md" placeholder="Add new encounter note..."></textarea>
+                            <button id="add-ehr-note-btn" class="mt-2 bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-emerald-700">Add Note</button>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <h4 class="text-lg font-semibold mb-2">Prescription History</h4>
+                        <div class="space-y-2 text-sm">
+                            ${state.prescriptions.filter(rx => rx.patientId === selectedPatient.id).map(rx => `
+                                <div class="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
+                                    <div>
+                                        <p class="font-semibold">${rx.medication} ${rx.dosage}</p>
+                                        <p class="text-xs text-gray-500">Issued: ${rx.issueDate} | ${rx.frequency}</p>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">${rx.status}</span>
+                                </div>
+                            `).join('') || '<p class="text-xs text-gray-400">No prescriptions on file.</p>'}
+                        </div>
+                    </div>
+                ` : `<div class="text-center py-20 text-gray-500">Select a patient to view their record.</div>`;
+
+                return `
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                        <div class="md:col-span-1 bg-white p-4 rounded-2xl shadow-md">
+                            <h3 class="text-xl font-semibold mb-4">Patients</h3>
+                            <input type="text" id="patient-search" placeholder="Search patients..." class="w-full p-2 border rounded-md mb-4" value="${searchTerm}">
+                            <ul id="patient-list" class="space-y-1">${patientListHTML}</ul>
+                        </div>
+                        <div class="md:col-span-3 bg-white p-6 rounded-2xl shadow-md">
+                            ${patientDetailHTML}
+                        </div>
+                    </div>
+                `;
+            };
+            
+            const renderPrescriptions = () => {
+                const prescriptionsHTML = state.prescriptions.map(rx => `
+                     <tr class="border-b">
+                        <td class="py-3 px-4">${rx.patientName}</td>
+                        <td class="py-3 px-4">${rx.medication}</td>
+                        <td class="py-3 px-4">${rx.dosage}</td>
+                        <td class="py-3 px-4">${rx.frequency}</td>
+                        <td class="py-3 px-4">${rx.issueDate}</td>
+                        <td class="py-3 px-4"><span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">${rx.status}</span></td>
+                        <td class="py-3 px-4"><button data-rx-id="${rx.id}" class="send-rx-btn bg-blue-500 text-white text-xs px-3 py-1 rounded-full hover:bg-blue-600 flex items-center"><i data-lucide="send" class="h-3 w-3 mr-1"></i>Send</button></td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-md">
+                            <h3 class="text-xl font-semibold mb-4">Active Prescriptions</h3>
+                             <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="bg-gray-50"><tr><th class="py-2 px-4">Patient</th><th class="py-2 px-4">Medication</th><th class="py-2 px-4">Dosage</th><th class="py-2 px-4">Frequency</th><th class="py-2 px-4">Issued</th><th class="py-2 px-4">Status</th><th class="py-2 px-4">Action</th></tr></thead>
+                                    <tbody>${prescriptionsHTML}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-md">
+                            <h3 class="text-xl font-semibold mb-4">New Prescription</h3>
+                            <form id="prescription-form" class="space-y-4">
+                                <select name="patientId" class="w-full p-2 border rounded-md" required>
+                                    <option value="">Select Patient</option>
+                                    ${state.patients.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                                </select>
+                                <input type="text" name="medication" placeholder="Medication Name" class="w-full p-2 border rounded-md" required>
+                                <input type="text" name="dosage" placeholder="Dosage (e.g., 10mg)" class="w-full p-2 border rounded-md" required>
+                                <input type="text" name="frequency" placeholder="Frequency (e.g., Once daily)" class="w-full p-2 border rounded-md" required>
+                                <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700">Issue Prescription</button>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            };
+            
+            const renderTelemedicine = () => {
+                const teleAppointments = state.appointments.filter(a => a.type === 'Telemedicine');
+                return `
+                    <div class="bg-white p-6 rounded-2xl shadow-md">
+                        <h3 class="text-xl font-semibold mb-4">Scheduled Telemedicine Calls</h3>
+                        <div class="space-y-4">
+                            ${teleAppointments.map(apt => `
+                                <div class="flex items-center justify-between p-4 border rounded-lg">
+                                    <div>
+                                        <p class="font-semibold">${apt.patientName}</p>
+                                        <p class="text-sm text-gray-500">${apt.date} at ${apt.time}</p>
+                                    </div>
+                                    <button data-patient-id="${apt.patientId}" class="start-telemedicine-btn bg-purple-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-purple-700 flex items-center space-x-2">
+                                        <i data-lucide="video"></i>
+                                        <span>Start Call</span>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderSecurity = () => {
+                return `
+                    <div class="bg-white p-8 rounded-2xl shadow-md">
+                        <div class="text-center mb-6">
+                            <i data-lucide="shield-check" class="mx-auto h-16 w-16 text-emerald-500"></i>
+                            <h3 class="text-2xl font-bold mt-4">HIPAA Compliance & Data Security</h3>
+                        </div>
+                        <div class="max-w-2xl mx-auto text-gray-600 space-y-4">
+                            <div class="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
+                                <p class="font-bold text-red-800">Disclaimer: This is a Portfolio Demo</p>
+                                <p class="text-sm text-red-700">The data in this application is for demonstration purposes only. All processing happens locally in your browser, and no data is stored or transmitted. This demo is <strong class="font-semibold">NOT HIPAA-compliant</strong> and should not be used with real patient information.</p>
+                            </div>
+                            <p>Achieving true HIPAA compliance is a comprehensive process involving administrative, physical, and technical safeguards. In a real-world production version of this application, the following measures would be implemented:</p>
+                            <ul class="list-disc list-inside space-y-2">
+                                <li><strong>Data Encryption:</strong> All patient data would be encrypted both in transit (using TLS) and at rest (in the database).</li>
+                                <li><strong>Access Control:</strong> A robust role-based access control (RBAC) system would ensure users can only view information necessary for their roles.</li>
+                                <li><strong>Audit Trails:</strong> Every action (viewing, creating, updating, deleting data) would be logged in a secure, immutable audit trail.</li>
+                                <li><strong>Secure Infrastructure:</strong> The application would be hosted on a HIPAA-eligible cloud platform (like AWS or Google Cloud) with a signed Business Associate Agreement (BAA).</li>
+                                <li><strong>Regular Risk Assessments:</strong> Ongoing security audits and risk assessments would be conducted to identify and mitigate vulnerabilities.</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            };
+
+            // --- EVENT HANDLING ---
+            const showToast = (message) => {
+                const toast = document.getElementById('toast-notification');
+                const toastMessage = document.getElementById('toast-message');
+                toastMessage.textContent = message;
+                toast.classList.remove('translate-x-[120%]', 'opacity-0');
+                setTimeout(() => {
+                    toast.classList.add('translate-x-[120%]', 'opacity-0');
+                }, 3000);
+            };
+
+            const addEventListeners = () => {
+                document.querySelectorAll('.tab-item, .quick-action-btn').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        state.activeTab = e.currentTarget.dataset.tab || e.currentTarget.dataset.tabTarget;
+                        render();
+                    });
+                });
+
+                // EHR Listeners
+                const patientListItems = document.querySelectorAll('.patient-list-item');
+                patientListItems.forEach(item => {
+                    item.addEventListener('click', e => {
+                        state.selectedPatientId = parseInt(e.currentTarget.dataset.patientId);
+                        render();
+                    });
+                });
+                const patientSearch = document.getElementById('patient-search');
+                if(patientSearch) {
+                    patientSearch.addEventListener('input', e => {
+                        renderEHR(e.target.value);
+                    });
+                }
+                const addNoteBtn = document.getElementById('add-ehr-note-btn');
+                if(addNoteBtn) {
+                    addNoteBtn.addEventListener('click', () => {
+                        const noteText = document.getElementById('new-ehr-note').value;
+                        if(noteText && state.selectedPatientId) {
+                            const newNote = { date: new Date().toISOString().split('T')[0], note: noteText };
+                            if(!state.ehr[state.selectedPatientId]) state.ehr[state.selectedPatientId] = [];
+                            state.ehr[state.selectedPatientId].unshift(newNote); // Add to beginning
+                            render();
+                            showToast('Encounter note added successfully.');
+                        }
+                    });
+                }
+                
+                // Appointment Form
+                const appointmentForm = document.getElementById('appointment-form');
+                if(appointmentForm) {
+                    appointmentForm.addEventListener('submit', e => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        const patientId = parseInt(formData.get('patientId'));
+                        const patient = state.patients.find(p => p.id === patientId);
+                        const newAppointment = {
+                            id: Date.now(),
+                            patientId: patientId,
+                            patientName: patient.name,
+                            date: formData.get('date'),
+                            time: formData.get('time'),
+                            type: formData.get('type'),
+                            status: 'Confirmed'
+                        };
+                        state.appointments.push(newAppointment);
+                        render();
+                        showToast('Appointment scheduled successfully.');
+                    });
+                }
+
+                // Prescription Form
+                const prescriptionForm = document.getElementById('prescription-form');
+                if(prescriptionForm) {
+                    prescriptionForm.addEventListener('submit', e => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        const patientId = parseInt(formData.get('patientId'));
+                        const patient = state.patients.find(p => p.id === patientId);
+                        const newRx = {
+                            id: Date.now(),
+                            patientId: patientId,
+                            patientName: patient.name,
+                            medication: formData.get('medication'),
+                            dosage: formData.get('dosage'),
+                            frequency: formData.get('frequency'),
+                            issueDate: new Date().toISOString().split('T')[0],
+                            status: 'Active'
+                        };
+                        state.prescriptions.unshift(newRx);
+                        render();
+                        showToast('Prescription issued successfully.');
+                    });
+                }
+                const sendRxBtns = document.querySelectorAll('.send-rx-btn');
+                sendRxBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        showToast('Prescription sent to pharmacy (simulated).');
+                    });
+                });
+
+                // Telemedicine
+                const startTelemedicineBtns = document.querySelectorAll('.start-telemedicine-btn');
+                startTelemedicineBtns.forEach(btn => {
+                    btn.addEventListener('click', e => {
+                        const patientId = parseInt(e.currentTarget.dataset.patientId);
+                        const patient = state.patients.find(p => p.id === patientId);
+                        document.getElementById('telemedicine-patient-name').textContent = patient.name;
+                        document.getElementById('telemedicine-modal').classList.remove('opacity-0', 'pointer-events-none');
+                    });
+                });
+                document.getElementById('close-telemedicine-modal').addEventListener('click', () => {
+                     document.getElementById('telemedicine-modal').classList.add('opacity-0', 'pointer-events-none');
+                });
+                document.getElementById('end-call-btn').addEventListener('click', () => {
+                     document.getElementById('telemedicine-modal').classList.add('opacity-0', 'pointer-events-none');
+                });
+            };
+
+            // --- INITIAL RENDER ---
+            const render = () => {
+                renderTabs();
+                renderContent();
+            };
+
+            render();
+        });
+    </script>
+</body>
+</html>
